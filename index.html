@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Guide: Porting ev3dev to Debian Trixie</title>
+    <title>Interactive Guide: Porting ev3dev to Debian Trixie (Enhanced)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -104,10 +104,10 @@
 
         <section id="overview" class="space-y-6 scroll-mt-20">
             <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">Project Overview</h2>
-            <p class="text-lg text-slate-600">This guide provides an interactive roadmap for porting ev3dev to Debian 13 "Trixie". It synthesizes a detailed technical analysis into an actionable plan, designed for experienced developers. The core challenge is the significant version gap between ev3dev's current base (Debian 9/10) and Trixie, compounded by the inaccessibility of the old ev3dev package archive. This necessitates a modern, source-based build approach.</p>
+            <p class="text-lg text-slate-600">This guide provides an interactive roadmap for porting ev3dev to Debian 13 "Trixie". It synthesizes a detailed technical analysis into an actionable plan, designed for experienced developers. The core challenge is the significant version gap between ev3dev's current base (Debian 9/10) and Trixie, compounded by the confirmed inaccessibility of the old `http://archive.ev3dev.org/debian/` package archive. This necessitates a pivot from relying on pre-compiled packages to a modern, source-based build approach.</p>
             <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-teal-500">
                 <h3 class="text-xl font-semibold text-slate-800 mb-2">Primary Recommendation: A Docker-Centric Workflow</h3>
-                <p class="text-slate-600">The most robust and maintainer-aligned strategy is to fully embrace a Docker-centric workflow. This involves creating a custom Debian Trixie cross-compilation environment within Docker, systematically rebuilding all ev3dev-specific components (like `ev3devKit`) from source for the `armel` architecture, and finally, using the `brickstrap` tool to assemble a bootable SD card image from a final, consolidated Docker image.</p>
+                <p class="text-slate-600">The most robust and maintainer-aligned strategy is to fully embrace a Docker-centric workflow. This involves creating a custom Debian Trixie cross-compilation environment within Docker, systematically rebuilding all ev3dev-specific components (like `ev3devKit` and its drivers) from source for the `armel` architecture, and finally, using the `brickstrap` tool to assemble a bootable SD card image from a final, consolidated Docker image.</p>
             </div>
         </section>
 
@@ -117,7 +117,7 @@
             <div class="grid md:grid-cols-2 gap-8 items-start">
                 <div class="space-y-4">
                     <h3 class="text-2xl font-semibold text-slate-800">Debian Version Gap</h3>
-                    <p class="text-slate-600">ev3dev's stable version is based on Debian 9 (Stretch), with development on Debian 10 (Buster). Our target, Trixie, is Debian 13. This three-to-four-generation leap means major changes in core libraries (like GLib, GObject), toolchains, and kernel APIs, which will likely break existing build scripts and require code-level adaptations.</p>
+                    <p class="text-slate-600">ev3dev's stable version is based on Debian 9 (Stretch), with development on Debian 10 (Buster). Our target, Trixie, is Debian 13. This three-to-four-generation leap means major changes in core libraries (like GLib, GObject), toolchains, and kernel APIs, which will likely break existing build scripts and require code-level adaptations. Specifically, ev3dev's custom drivers and libraries such as `ev3devKit` and the `LegoPort` class are designed for these older releases, necessitating significant modifications to accommodate updated dependencies and changed APIs in Debian 13.</p>
                     <div class="w-full bg-white p-4 rounded-lg shadow">
                         <p class="font-medium text-center text-slate-700 mb-2">ev3dev vs. Target Debian Release</p>
                         <div class="relative w-full h-4 bg-slate-200 rounded-full">
@@ -147,32 +147,39 @@
                     </div>
                 </div>
             </div>
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-slate-500">
+                <h3 class="text-xl font-semibold text-slate-800 mb-2">Understanding Trixie's "Testing" Status</h3>
+                <p class="text-slate-600">Debian Trixie is currently the "testing" distribution, meaning it's a crucial staging area for packages before a formal stable release. Unlike stable versions, Trixie is a dynamic target, continuously evolving with frequent package updates and potential API changes. This inherent instability implies a higher probability of encountering bugs or regressions, requiring a proactive approach to development, debugging, and ongoing maintenance. While some users find it "ready for everyday use" on general systems, this sentiment does not directly translate to specialized embedded platforms like ev3dev, where stability and precise hardware interaction are paramount.</p>
+            </div>
         </section>
 
         <section id="toolkit" class="space-y-6 mt-12 scroll-mt-20">
             <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">The Developer's Toolkit</h2>
-            <p class="text-lg text-slate-600">A successful port relies on a specific set of tools. This section outlines the essential utilities for cross-compilation, package building, and image creation. The entire workflow is orchestrated within a Docker environment, which provides the necessary isolation and reproducibility.</p>
+            <p class="text-lg text-slate-600">A successful port relies on a specific set of tools. This section outlines the essential utilities for cross-compilation, package building, and image creation. The entire workflow is orchestrated within a Docker environment, which provides the necessary isolation and reproducibility, effectively superseding older `brickstrap` cross-compilation approaches.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h3 class="text-xl font-semibold text-slate-800 mb-3">Core Environment</h3>
                     <ul class="space-y-2 text-slate-600">
-                        <li><strong class="text-slate-800">Docker:</strong> For creating isolated, reproducible cross-compilation environments. The cornerstone of the modern ev3dev build process.</li>
-                        <li><strong class="text-slate-800">Brickstrap:</strong> The final-stage tool used to assemble a bootable `.img` file from a completed Docker image.</li>
+                        <li><strong class="text-slate-800">Docker:</strong> For creating isolated, reproducible cross-compilation environments. It's the cornerstone of the modern ev3dev build process.</li>
+                        <li><strong class="text-slate-800">Brickstrap:</strong> The final-stage tool used to assemble a bootable `.img` file *from* a completed Docker image. It no longer directly manages the cross-compilation environment.</li>
+                        <li><strong class="text-slate-800">Chroot:</strong> An alternative to Docker for creating isolated build environments, though Docker is generally preferred for its ease of use and reproducibility in this context.</li>
                     </ul>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h3 class="text-xl font-semibold text-slate-800 mb-3">Package Building</h3>
                     <ul class="space-y-2 text-slate-600">
-                         <li><strong class="text-slate-800">dpkg-buildpackage:</strong> The primary script for automating the build of Debian source packages into `.deb` files.</li>
-                        <li><strong class="text-slate-800">crossbuild-essential-armel:</strong> A critical metapackage that installs the entire `armel` cross-compilation toolchain.</li>
-                        <li><strong class="text-slate-800">devscripts & dh-make:</strong> A collection of helper scripts for Debian developers, including tools to "Debianize" source code.</li>
+                         <li><strong class="text-slate-800">dpkg-buildpackage:</strong> The primary script for automating the build of Debian source packages into `.deb` files, handling compilation and packaging.</li>
+                        <li><strong class="text-slate-800">crossbuild-essential-armel:</strong> A critical metapackage that installs the entire `armel` cross-compilation toolchain, including `arm-linux-gnueabi-gcc`.</li>
+                        <li><strong class="text-slate-800">devscripts & dh-make:</strong> `devscripts` offers various utilities for Debian developers, while `dh-make` assists in "Debianizing" source code by creating the necessary `debian/` directory structure and template files.</li>
+                        <li><strong class="text-slate-800">build-essential:</strong> Provides core compilation tools like `gcc` and `make` for standard builds.</li>
                     </ul>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md">
                     <h3 class="text-xl font-semibold text-slate-800 mb-3">Package Management & QA</h3>
                     <ul class="space-y-2 text-slate-600">
-                        <li><strong class="text-slate-800">apt & dpkg:</strong> Standard Debian tools for managing packages and dependencies within the build environment.</li>
-                        <li><strong class="text-slate-800">lintian & piuparts:</strong> Quality assurance tools to check for policy violations and ensure packages install/remove correctly.</li>
+                        <li><strong class="text-slate-800">apt & dpkg:</strong> Standard Debian tools. `dpkg` handles low-level file-based operations for `.deb` files, while `apt` is recommended for higher-level interactive use and `apt-get` for scripting.</li>
+                        <li><strong class="text-slate-800">lintian & piuparts:</strong> Quality assurance tools. `lintian` checks for policy violations and bugs in packages, and `piuparts` verifies correct installation, upgrading, and removal.</li>
+                        <li><strong class="text-slate-800">apt source & apt build-dep:</strong> `apt source` is used to obtain upstream source code, and `apt build-dep` automatically fetches necessary build dependencies for a source package.</li>
                     </ul>
                 </div>
             </div>
@@ -189,28 +196,30 @@
                         <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
                     </button>
                     <div class="accordion-content px-4 pb-4">
-                        <p class="text-slate-600 mb-4">The foundation of this project is a custom Docker image based on Debian Trixie, equipped with the `armel` cross-compiler. This ensures a clean, isolated, and reproducible build environment.</p>
+                        <p class="text-slate-600 mb-4">The foundation of this project is a custom Docker image based on Debian Trixie, equipped with the `armel` cross-compiler. This ensures a clean, isolated, and reproducible build environment. The EV3 uses the `armel` architecture, so precise configuration is critical to avoid runtime errors.</p>
                         <ol class="list-decimal list-inside space-y-3 text-slate-700">
-                            <li><strong>Clone `ev3dev/docker-cross` repository:</strong> This gives you the templates for existing build environments.
+                            <li><strong>Clone `ev3dev/docker-cross` repository:</strong> Begin by cloning the `ev3dev/docker-cross` repository to access existing Dockerfile templates.
                                 <div class="code-block mt-2">
                                     <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">git clone https://github.com/ev3dev/docker-cross.git
 cd docker-cross</code></pre>
                                     <button class="copy-button" onclick="copyCode(this)">Copy</button>
                                 </div>
                             </li>
-                            <li><strong>Create a `debian-trixie-cross` Dockerfile:</strong> Adapt an existing file (e.g., `debian-buster-cross/Dockerfile`). Set the base image to `FROM debian:trixie` and install essential tools like `crossbuild-essential-armel`. Ensure you add the `armel` architecture with `dpkg --add-architecture armel`.</li>
+                            <li><strong>Create a `debian-trixie-cross` Dockerfile:</strong> Adapt an existing file (e.g., `debian-buster-cross/Dockerfile`). Set the base image to `FROM debian:trixie`. Crucially, ensure `dpkg --add-architecture armel` is included early to enable multi-architecture support. Install essential tools like `build-essential`, `devscripts`, `dh-make`, and `crossbuild-essential-armel` within the Dockerfile.</li>
                             <li><strong>Build the custom Docker image:</strong>
                                 <div class="code-block mt-2">
                                     <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">docker build -t ev3dev/debian-trixie-cross .</code></pre>
                                     <button class="copy-button" onclick="copyCode(this)">Copy</button>
                                 </div>
                             </li>
-                            <li><strong>Verify the cross-compiler:</strong> Run a container and perform a quick test compilation to confirm the `arm-linux-gnueabi-gcc` toolchain is working.
+                            <li><strong>Verify the cross-compiler:</strong> Run a container and perform a quick test compilation to confirm the `arm-linux-gnueabi-gcc` toolchain is working correctly for the `armel` architecture.
                                 <div class="code-block mt-2">
                                     <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">docker run --rm -it ev3dev/debian-trixie-cross bash
 # Inside container:
-arm-linux-gnueabi-gcc -o hello -x c &lt;(echo 'int main(){return 0;}')
-file hello # Should report: ELF 32-bit LSB executable, ARM...</code></pre>
+echo '#include &lt;stdio.h&gt;\nint main() { printf("Hello from Trixie!\\n"); return 0; }' &gt; hello.c
+arm-linux-gnueabi-gcc -o hello hello.c
+file hello # Should report: ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV)
+exit</code></pre>
                                     <button class="copy-button" onclick="copyCode(this)">Copy</button>
                                 </div>
                             </li>
@@ -224,11 +233,12 @@ file hello # Should report: ELF 32-bit LSB executable, ARM...</code></pre>
                         <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
                     </button>
                     <div class="accordion-content px-4 pb-4">
-                        <p class="text-slate-600 mb-4">This is the most iterative phase. You must identify all custom ev3dev packages (e.g., `ev3devKit`, `brickman`, `ev3dev-tools`), update their Debian packaging files to be Trixie-compatible, and rebuild them from source.</p>
+                        <p class="text-slate-600 mb-4">This is the most iterative phase. You must identify all custom ev3dev packages (e.g., `ev3devKit`, `brickman`, `ev3dev-tools`, and potentially the ev3dev kernel if a Trixie-compatible kernel is not adopted directly), update their Debian packaging files to be Trixie-compatible, and rebuild them from source.</p>
                         <ol class="list-decimal list-inside space-y-3 text-slate-700">
                              <li><strong>Obtain Source Code:</strong> Clone the GitHub repository for each custom ev3dev component (e.g., `git clone https://github.com/ev3dev/ev3devKit.git`).</li>
-                            <li><strong>Update Dependencies:</strong> In the `debian/control` file of each package, update the `Build-Depends` to match library versions available in Trixie. This will require research and testing.</li>
-                            <li><strong>Adapt Build Rules:</strong> Modify the `debian/rules` file if necessary to work with Trixie's newer compilers and build systems.</li>
+                            <li><strong>Analyze Debian Packaging Files:</strong> Examine the `debian/` directory within each source package. Pay close attention to the `control` file, which specifies `Build-Depends` (build-time dependencies), `Depends` (runtime dependencies), and the target `Architecture` (`armel`). Also, review the `rules` file, which defines the build instructions.</li>
+                            <li><strong>Update Dependencies:</strong> Modify the `Build-Depends` and `Depends` fields in `debian/control` to align with the package versions and dependencies available in Debian Trixie. This is where the version gap will likely manifest.</li>
+                            <li><strong>Adapt Build Rules:</strong> Review and modify the `debian/rules` file (a Makefile) as needed to account for Trixie's build environment, newer compiler versions, or changes in library paths.</li>
                             <li><strong>Cross-Compile the Package:</strong> Use `dpkg-buildpackage` inside your Trixie cross-compilation container to build the `.deb` file for the `armel` architecture.
                                 <div class="code-block mt-2">
                                     <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash"># Mount the source directory and run the build
@@ -237,22 +247,44 @@ docker run --rm -it -v $(pwd)/ev3devKit:/src -w /src ev3dev/debian-trixie-cross 
                                     <button class="copy-button" onclick="copyCode(this)">Copy</button>
                                 </div>
                             </li>
-                             <li><strong>Iterate and Debug:</strong> Expect compilation failures. Read error messages carefully—they often point to missing `-dev` packages or API incompatibilities that need to be fixed in the source code or packaging files. Repeat until all components build successfully.</li>
+                             <li><strong>Iterate and Debug:</strong> Expect compilation failures. Read error messages carefully—they often point to missing `*-dev` packages or API incompatibilities that need to be fixed in the source code or packaging files. Runtime errors will indicate deeper compatibility issues. Repeat until all components build successfully.</li>
                         </ol>
                     </div>
                 </div>
-                 <!-- Step 3 -->
+                 <!-- Step 3 (NEW) -->
                 <div class="accordion-item bg-white rounded-lg shadow-md">
                     <button class="accordion-header w-full text-left p-4 flex justify-between items-center">
-                        <span class="text-xl font-semibold text-slate-800">3. Create Final ev3dev Trixie Image</span>
+                        <span class="text-xl font-semibold text-slate-800">3. Manage Dependencies and Resolve Conflicts</span>
                         <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
                     </button>
                     <div class="accordion-content px-4 pb-4">
-                        <p class="text-slate-600 mb-4">With all custom components rebuilt as `.deb` packages, the next step is to assemble them into a final, comprehensive Docker image that represents the complete ev3dev-Trixie operating system.</p>
+                        <p class="text-slate-600 mb-4">Dependency management is a critical challenge when porting across significant distribution versions. The substantial version jump to Trixie means many fundamental library and package versions will be different, potentially leading to conflicts or missing dependencies.</p>
                         <ol class="list-decimal list-inside space-y-3 text-slate-700">
-                            <li><strong>Create a Final Dockerfile:</strong> Adapt a Dockerfile from the `ev3dev/docker-library` repository. Set the base to `FROM debian:trixie`.</li>
-                            <li><strong>Install Custom Packages:</strong> Add `COPY` and `RUN dpkg -i` commands to your Dockerfile to install all the custom `.deb` packages you built in the previous step.</li>
-                            <li><strong>Build the Final Image:</strong>
+                            <li><strong>Proactive Dependency Mapping:</strong> Thoroughly review `Build-Depends` and `Depends` in `debian/control` files. Map these dependencies to their corresponding versions in Debian Trixie's repositories using `apt-cache policy <package>` within a Trixie environment.</li>
+                            <li><strong>Utilize `apt build-dep`:</strong> Run `apt build-dep <source-package-name>` within your Trixie-based cross-compilation Docker container. This will automatically install most build dependencies based on the configured repositories.</li>
+                            <li><strong>Manual Resolution for Conflicts:</strong> For any missing or conflicting dependencies, manual intervention is required. This might involve:
+                                <ul>
+                                    <li>Identifying Trixie-compatible versions of libraries.</li>
+                                    <li>Potentially backporting specific dependencies from Debian Sid (unstable) if they are not yet available or sufficiently new in Trixie. This carries risks due to the unstable nature of Sid.</li>
+                                    <li>In complex cases, modifying ev3dev's source code to adapt to new API changes in Trixie's updated libraries.</li>
+                                </ul>
+                            </li>
+                            <li><strong>`Multi-Arch: same` Awareness:</strong> Be mindful of `Multi-Arch: same` packages, which allow libraries and headers for different architectures (like `armel` and `amd64`) to coexist on the same system. This feature is crucial for effective cross-compilation environments.</li>
+                        </ol>
+                    </div>
+                </div>
+                 <!-- Step 4 (was 3) -->
+                <div class="accordion-item bg-white rounded-lg shadow-md">
+                    <button class="accordion-header w-full text-left p-4 flex justify-between items-center">
+                        <span class="text-xl font-semibold text-slate-800">4. Create Final ev3dev Trixie Image</span>
+                        <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
+                    </button>
+                    <div class="accordion-content px-4 pb-4">
+                        <p class="text-slate-600 mb-4">With all custom components rebuilt as `.deb` packages, the next step is to assemble them into a final, comprehensive Docker image that represents the complete ev3dev-Trixie operating system. `brickstrap` now creates bootable images *from* Docker images, so leveraging `ev3dev/docker-library` templates is key.</p>
+                        <ol class="list-decimal list-inside space-y-3 text-slate-700">
+                            <li><strong>Create a Trixie-based ev3dev Dockerfile:</strong> Adapt an existing `ev3dev-buster` or `ev3dev-stretch` Dockerfile from the `ev3dev/docker-library` repository. Change the base image to `FROM debian:trixie`.</li>
+                            <li><strong>Install Custom Packages:</strong> Integrate the installation of the newly built ev3dev-specific `.deb` packages (from step 2) into this Dockerfile. You can add them to a local APT repository within the Docker build context or directly copy and install them using `dpkg -i`. Ensure `brickstrap`'s layer definitions (e.g., `brickstrap/<layer>/run` scripts) are updated and compatible with Trixie.</li>
+                            <li><strong>Build the Final Image:</strong> Execute the `docker build` command to create the comprehensive ev3dev Trixie Docker image.
                                 <div class="code-block mt-2">
                                     <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">docker build -t ev3dev/ev3dev-trixie-ev3-generic .</code></pre>
                                     <button class="copy-button" onclick="copyCode(this)">Copy</button>
@@ -261,16 +293,16 @@ docker run --rm -it -v $(pwd)/ev3devKit:/src -w /src ev3dev/debian-trixie-cross 
                         </ol>
                     </div>
                 </div>
-                 <!-- Step 4 -->
+                 <!-- Step 5 (was 4) -->
                 <div class="accordion-item bg-white rounded-lg shadow-md">
                     <button class="accordion-header w-full text-left p-4 flex justify-between items-center">
-                        <span class="text-xl font-semibold text-slate-800">4. Generate and Test Bootable SD Card</span>
+                        <span class="text-xl font-semibold text-slate-800">5. Generate and Test Bootable SD Card</span>
                         <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
                     </button>
                     <div class="accordion-content px-4 pb-4">
                         <p class="text-slate-600 mb-4">The final step is to convert your complete Docker image into a bootable SD card image using `brickstrap`, flash it, and perform rigorous testing on the actual EV3 hardware.</p>
                         <ol class="list-decimal list-inside space-y-3 text-slate-700">
-                            <li><strong>Generate Image with `brickstrap`:</strong> Use the `brickstrap` tool to convert your final Docker image into a bootable `.img` file.
+                            <li><strong>Generate Image with `brickstrap`:</strong> Use the `brickstrap` tool to convert your final Docker image into a bootable `.img` file. This typically involves creating a tarball from the Docker image first, then generating the image.
                                 <div class="code-block mt-2">
                                     <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">brickstrap create-tar ev3dev/ev3dev-trixie-ev3-generic ev3dev-trixie.tar
 brickstrap create-image ev3dev-trixie.tar ev3dev-trixie.img</code></pre>
@@ -291,11 +323,11 @@ brickstrap create-image ev3dev-trixie.tar ev3dev-trixie.img</code></pre>
             <div class="grid md:grid-cols-2 gap-6">
                 <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-amber-500">
                     <h3 class="text-xl font-semibold text-slate-800 mb-2">Instability of a "Testing" Release</h3>
-                    <p class="text-slate-600">Debian Trixie is a moving target. As the "testing" branch, it receives continuous updates, and there is no guarantee of API stability. A system built on Trixie today might break after a routine `apt upgrade` tomorrow. This requires a commitment to ongoing maintenance and debugging until Trixie becomes stable.</p>
+                    <p class="text-slate-600">Debian Trixie is a moving target. As the "testing" branch, it receives continuous updates, and there is no guarantee of API stability. A system built on Trixie today might break after a routine `apt upgrade` tomorrow. This requires a commitment to ongoing maintenance and debugging until Trixie becomes stable. The "best-effort" nature of backports (which are derived from `testing`) directly implies that a full system port to `testing` will inherit and amplify these risks, leading to a significant ongoing maintenance burden and inherent system fragility. Official Debian support for the `testing` branch is also less comprehensive than for `stable`.</p>
                 </div>
                 <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-amber-500">
                     <h3 class="text-xl font-semibold text-slate-800 mb-2">Hardware Driver Compatibility</h3>
-                    <p class="text-slate-600">ev3dev's functionality depends on custom kernel modules and drivers. These must be compatible with Trixie's newer Linux kernel. This may require deep, technical work, including patching driver source code to align with new kernel APIs, which can be the most time-consuming part of the port.</p>
+                    <p class="text-slate-600">ev3dev's functionality depends on custom kernel modules and drivers, such as those built upon `libevdev-dev`, and higher-level abstractions like `ev3devKit` and `LegoPort`. These must be compatible with Trixie's newer Linux kernel and the `glibc` (GNU C Library) version. This may require deep, technical work, including patching driver source code to align with new kernel interfaces or adapting user-space code to new API changes in Trixie's updated libraries. This aspect of the porting process is often the most technically demanding and time-consuming, requiring a thorough understanding of both ev3dev's internal architecture and Debian's kernel and library evolution.</p>
                 </div>
             </div>
         </section>
@@ -304,14 +336,15 @@ brickstrap create-image ev3dev-trixie.tar ev3dev-trixie.img</code></pre>
             <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">Final Recommendations</h2>
             <p class="text-lg text-slate-600">To maximize the chances of a successful port and create a sustainable system, follow these best practices throughout the development process. A disciplined, systematic approach is key to navigating the complexities of this project.</p>
             <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 list-inside list-disc text-slate-700">
-                <li>Prioritize and verify the `armel` cross-compilation toolchain at every step.</li>
-                <li>Leverage existing `ev3dev/docker-cross` and `ev3dev/docker-library` Dockerfiles as templates.</li>
-                <li>Prepare for an iterative cycle of building, testing, and debugging, especially for custom packages.</li>
-                <li>Rigorously test all hardware functions on the EV3 brick after creating a bootable image.</li>
-                <li>Proactively map dependencies before compiling and be ready for manual conflict resolution.</li>
-                <li>Engage with the ev3dev and Debian communities for support and troubleshooting.</li>
-                <li>Plan for long-term maintenance, as Trixie will evolve until its official stable release.</li>
-                <li>Document every change, dependency resolution, and patch for future reference.</li>
+                <li>**Prioritize `armel` Cross-Compilation:** Meticulously configure and utilize the `armel` cross-compilation toolchain, leveraging `crossbuild-essential-armel`.</li>
+                <li>**Meticulously Manage Dependencies:** Proactively map dependencies, use `apt build-dep`, and be prepared for manual resolution of conflicts, potentially involving source code modifications or careful backporting from Debian Sid.</li>
+                <li>**Prepare for Iterative Debugging:** Anticipate an iterative development cycle involving frequent compilation errors, runtime issues, and system instability due to Trixie's "testing" status.</li>
+                <li>**Leverage Existing ev3dev Dockerfiles:** Adapt existing Dockerfiles from `ev3dev/docker-cross` and `ev3dev/docker-library` to create your Trixie-based build and image creation environments.</li>
+                <li>**Focus on Custom Component Rebuilding:** Identify all ev3dev-specific packages (e.g., `ev3devKit`, `brickman`, kernel modules) and systematically rebuild them from their source repositories against the Debian Trixie environment.</li>
+                <li>**Rigorously Test All Functionality:** After creating a bootable image, perform comprehensive testing of all EV3 hardware components (motors, sensors, display, buttons) and software layers.</li>
+                <li>**Engage with Communities:** Actively participate in both Debian and ev3dev community forums, mailing lists, and IRC channels for assistance and updates.</li>
+                <li>**Consider Long-Term Maintenance:** Understand that a system ported to a "testing" release will require ongoing maintenance and adaptation as Trixie continues to evolve towards its stable release.</li>
+                <li>**Document Every Change:** Meticulously document every change, dependency resolution, and patch for future reference and maintainability.</li>
             </ul>
         </section>
     </main>
