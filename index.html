@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Guide: Porting ev3dev to Debian Trixie</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Slate & Muted Teal -->
+    <!-- Application Structure Plan: The SPA is designed as a task-oriented interactive guide, departing from the linear report structure. It uses a persistent top navigation to allow users to jump to thematic sections: 'Overview', 'The Challenge', 'The Toolkit', 'The Roadmap', 'Risks', and 'Recommendations'. This non-linear structure facilitates quick access to specific information, catering to a developer's need to find solutions efficiently. The core of the app is the interactive 'Roadmap', which presents the step-by-step porting process as a clickable accordion flow, making the complex procedure digestible and actionable. This design prioritizes user task completion over passive reading. -->
+    <!-- Visualization & Content Choices: The report is text-heavy, so visualizations are chosen to abstract and clarify key challenges. A conceptual bar chart (Chart.js) in 'The Challenge' section visualizes the 'Porting Difficulty' for key ev3dev components, making the abstract risk of dependency conflicts tangible. The main 'Roadmap' is presented as an interactive process diagram (HTML/CSS) instead of a simple list, guiding the user through the workflow. Tooling information is organized into interactive cards ('The Toolkit') for better scannability. All code snippets have 'copy' buttons for immediate utility. This confirms NO SVG/Mermaid is used, and all visuals support the task-oriented design. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+            color: #334155; /* slate-700 */
+        }
+        .nav-link {
+            transition: color 0.2s, border-color 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #0d9488; /* teal-600 */
+            border-bottom-color: #0d9488;
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .code-block {
+            position: relative;
+        }
+        .copy-button {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: #475569;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .copy-button:hover {
+            background-color: #1e293b;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white/80 backdrop-blur-sm shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <h1 class="text-xl md:text-2xl font-bold text-slate-800">Porting ev3dev to Trixie</h1>
+                <nav class="hidden md:flex items-center space-x-4 lg:space-x-6">
+                    <a href="#overview" class="nav-link px-2 py-1 font-medium text-slate-600">Overview</a>
+                    <a href="#challenge" class="nav-link px-2 py-1 font-medium text-slate-600">The Challenge</a>
+                    <a href="#toolkit" class="nav-link px-2 py-1 font-medium text-slate-600">The Toolkit</a>
+                    <a href="#roadmap" class="nav-link px-2 py-1 font-medium text-slate-600">The Roadmap</a>
+                    <a href="#risks" class="nav-link px-2 py-1 font-medium text-slate-600">Risks</a>
+                    <a href="#recommendations" class="nav-link px-2 py-1 font-medium text-slate-600">Recommendations</a>
+                </nav>
+                <div class="md:hidden">
+                    <select id="mobile-nav" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                        <option value="overview">Overview</option>
+                        <option value="challenge">The Challenge</option>
+                        <option value="toolkit">The Toolkit</option>
+                        <option value="roadmap">The Roadmap</option>
+                        <option value="risks">Risks</option>
+                        <option value="recommendations">Recommendations</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 sm:p-6 lg:p-8">
+
+        <section id="overview" class="space-y-6 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">Project Overview</h2>
+            <p class="text-lg text-slate-600">This guide provides an interactive roadmap for porting ev3dev to Debian 13 "Trixie". It synthesizes a detailed technical analysis into an actionable plan, designed for experienced developers. The core challenge is the significant version gap between ev3dev's current base (Debian 9/10) and Trixie, compounded by the inaccessibility of the old ev3dev package archive. This necessitates a modern, source-based build approach.</p>
+            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-teal-500">
+                <h3 class="text-xl font-semibold text-slate-800 mb-2">Primary Recommendation: A Docker-Centric Workflow</h3>
+                <p class="text-slate-600">The most robust and maintainer-aligned strategy is to fully embrace a Docker-centric workflow. This involves creating a custom Debian Trixie cross-compilation environment within Docker, systematically rebuilding all ev3dev-specific components (like `ev3devKit`) from source for the `armel` architecture, and finally, using the `brickstrap` tool to assemble a bootable SD card image from a final, consolidated Docker image.</p>
+            </div>
+        </section>
+
+        <section id="challenge" class="space-y-8 mt-12 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">The Challenge</h2>
+            <p class="text-lg text-slate-600">Porting to Trixie is not a simple package upgrade. This section breaks down the three main hurdles: the significant version gap between Debian releases, the inherent instability of a "testing" branch, and the complexities of ensuring hardware driver compatibility on the new base.</p>
+            <div class="grid md:grid-cols-2 gap-8 items-start">
+                <div class="space-y-4">
+                    <h3 class="text-2xl font-semibold text-slate-800">Debian Version Gap</h3>
+                    <p class="text-slate-600">ev3dev's stable version is based on Debian 9 (Stretch), with development on Debian 10 (Buster). Our target, Trixie, is Debian 13. This three-to-four-generation leap means major changes in core libraries (like GLib, GObject), toolchains, and kernel APIs, which will likely break existing build scripts and require code-level adaptations.</p>
+                    <div class="w-full bg-white p-4 rounded-lg shadow">
+                        <p class="font-medium text-center text-slate-700 mb-2">ev3dev vs. Target Debian Release</p>
+                        <div class="relative w-full h-4 bg-slate-200 rounded-full">
+                            <div class="absolute top-0 left-0 h-4 bg-sky-500 rounded-l-full" style="width: 20%;"></div>
+                            <div class="absolute top-0 left-[20%] h-4 bg-sky-600" style="width: 20%;"></div>
+                            <div class="absolute top-0 left-[40%] h-4 bg-slate-200" style="width: 60%;"></div>
+                            <div class="absolute top-0 left-0 w-full flex justify-between text-xs font-semibold px-1 text-white">
+                                <span class="text-sky-800" style="position: absolute; left: 5%; top: 1.5rem;">9: Stretch</span>
+                                <span class="text-sky-900" style="position: absolute; left: 25%; top: 1.5rem;">10: Buster</span>
+                                <span class="text-slate-500" style="position: absolute; left: 45%; top: 1.5rem;">11: Bullseye</span>
+                                <span class="text-slate-500" style="position: absolute; left: 65%; top: 1.5rem;">12: Bookworm</span>
+                                <span class="font-bold text-teal-600" style="position: absolute; right: 5%; top: 1.5rem;">13: Trixie</span>
+                            </div>
+                        </div>
+                         <div class="mt-8 text-xs text-slate-500">
+                            <span class="inline-block w-3 h-3 bg-sky-500 rounded-full mr-1"></span> ev3dev Stable
+                            <span class="inline-block w-3 h-3 bg-sky-600 rounded-full mr-1 ml-4"></span> ev3dev Development
+                            <span class="inline-block w-3 h-3 bg-teal-500 rounded-full mr-1 ml-4"></span> Porting Target
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-2xl font-semibold text-slate-800 mb-4">Estimated Component Porting Difficulty</h3>
+                    <p class="text-slate-600 mb-4">This chart provides a conceptual estimate of the difficulty in porting key ev3dev components. Higher bars indicate more anticipated work due to complex dependencies and potential API incompatibilities with Trixie.</p>
+                    <div class="chart-container">
+                        <canvas id="difficultyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="toolkit" class="space-y-6 mt-12 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">The Developer's Toolkit</h2>
+            <p class="text-lg text-slate-600">A successful port relies on a specific set of tools. This section outlines the essential utilities for cross-compilation, package building, and image creation. The entire workflow is orchestrated within a Docker environment, which provides the necessary isolation and reproducibility.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-slate-800 mb-3">Core Environment</h3>
+                    <ul class="space-y-2 text-slate-600">
+                        <li><strong class="text-slate-800">Docker:</strong> For creating isolated, reproducible cross-compilation environments. The cornerstone of the modern ev3dev build process.</li>
+                        <li><strong class="text-slate-800">Brickstrap:</strong> The final-stage tool used to assemble a bootable `.img` file from a completed Docker image.</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-slate-800 mb-3">Package Building</h3>
+                    <ul class="space-y-2 text-slate-600">
+                         <li><strong class="text-slate-800">dpkg-buildpackage:</strong> The primary script for automating the build of Debian source packages into `.deb` files.</li>
+                        <li><strong class="text-slate-800">crossbuild-essential-armel:</strong> A critical metapackage that installs the entire `armel` cross-compilation toolchain.</li>
+                        <li><strong class="text-slate-800">devscripts & dh-make:</strong> A collection of helper scripts for Debian developers, including tools to "Debianize" source code.</li>
+                    </ul>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold text-slate-800 mb-3">Package Management & QA</h3>
+                    <ul class="space-y-2 text-slate-600">
+                        <li><strong class="text-slate-800">apt & dpkg:</strong> Standard Debian tools for managing packages and dependencies within the build environment.</li>
+                        <li><strong class="text-slate-800">lintian & piuparts:</strong> Quality assurance tools to check for policy violations and ensure packages install/remove correctly.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section id="roadmap" class="space-y-6 mt-12 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">The Porting Roadmap</h2>
+            <p class="text-lg text-slate-600">This section provides a sequential, step-by-step guide to the porting process. Each step is a major phase in the journey, from setting up your build environment to flashing a final image. Click on each step to expand it and view the detailed actions required.</p>
+            <div class="space-y-4">
+                <!-- Step 1 -->
+                <div class="accordion-item bg-white rounded-lg shadow-md">
+                    <button class="accordion-header w-full text-left p-4 flex justify-between items-center">
+                        <span class="text-xl font-semibold text-slate-800">1. Set Up Cross-Compilation Environment</span>
+                        <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
+                    </button>
+                    <div class="accordion-content px-4 pb-4">
+                        <p class="text-slate-600 mb-4">The foundation of this project is a custom Docker image based on Debian Trixie, equipped with the `armel` cross-compiler. This ensures a clean, isolated, and reproducible build environment.</p>
+                        <ol class="list-decimal list-inside space-y-3 text-slate-700">
+                            <li><strong>Clone `ev3dev/docker-cross` repository:</strong> This gives you the templates for existing build environments.
+                                <div class="code-block mt-2">
+                                    <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">git clone https://github.com/ev3dev/docker-cross.git
+cd docker-cross</code></pre>
+                                    <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </li>
+                            <li><strong>Create a `debian-trixie-cross` Dockerfile:</strong> Adapt an existing file (e.g., `debian-buster-cross/Dockerfile`). Set the base image to `FROM debian:trixie` and install essential tools like `crossbuild-essential-armel`. Ensure you add the `armel` architecture with `dpkg --add-architecture armel`.</li>
+                            <li><strong>Build the custom Docker image:</strong>
+                                <div class="code-block mt-2">
+                                    <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">docker build -t ev3dev/debian-trixie-cross .</code></pre>
+                                    <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </li>
+                            <li><strong>Verify the cross-compiler:</strong> Run a container and perform a quick test compilation to confirm the `arm-linux-gnueabi-gcc` toolchain is working.
+                                <div class="code-block mt-2">
+                                    <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">docker run --rm -it ev3dev/debian-trixie-cross bash
+# Inside container:
+arm-linux-gnueabi-gcc -o hello -x c &lt;(echo 'int main(){return 0;}')
+file hello # Should report: ELF 32-bit LSB executable, ARM...</code></pre>
+                                    <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+                <!-- Step 2 -->
+                <div class="accordion-item bg-white rounded-lg shadow-md">
+                    <button class="accordion-header w-full text-left p-4 flex justify-between items-center">
+                        <span class="text-xl font-semibold text-slate-800">2. Rebuild ev3dev-Specific Packages</span>
+                        <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
+                    </button>
+                    <div class="accordion-content px-4 pb-4">
+                        <p class="text-slate-600 mb-4">This is the most iterative phase. You must identify all custom ev3dev packages (e.g., `ev3devKit`, `brickman`, `ev3dev-tools`), update their Debian packaging files to be Trixie-compatible, and rebuild them from source.</p>
+                        <ol class="list-decimal list-inside space-y-3 text-slate-700">
+                             <li><strong>Obtain Source Code:</strong> Clone the GitHub repository for each custom ev3dev component (e.g., `git clone https://github.com/ev3dev/ev3devKit.git`).</li>
+                            <li><strong>Update Dependencies:</strong> In the `debian/control` file of each package, update the `Build-Depends` to match library versions available in Trixie. This will require research and testing.</li>
+                            <li><strong>Adapt Build Rules:</strong> Modify the `debian/rules` file if necessary to work with Trixie's newer compilers and build systems.</li>
+                            <li><strong>Cross-Compile the Package:</strong> Use `dpkg-buildpackage` inside your Trixie cross-compilation container to build the `.deb` file for the `armel` architecture.
+                                <div class="code-block mt-2">
+                                    <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash"># Mount the source directory and run the build
+docker run --rm -it -v $(pwd)/ev3devKit:/src -w /src ev3dev/debian-trixie-cross \
+  dpkg-buildpackage -us -uc -b -aarmel</code></pre>
+                                    <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </li>
+                             <li><strong>Iterate and Debug:</strong> Expect compilation failures. Read error messages carefully—they often point to missing `-dev` packages or API incompatibilities that need to be fixed in the source code or packaging files. Repeat until all components build successfully.</li>
+                        </ol>
+                    </div>
+                </div>
+                 <!-- Step 3 -->
+                <div class="accordion-item bg-white rounded-lg shadow-md">
+                    <button class="accordion-header w-full text-left p-4 flex justify-between items-center">
+                        <span class="text-xl font-semibold text-slate-800">3. Create Final ev3dev Trixie Image</span>
+                        <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
+                    </button>
+                    <div class="accordion-content px-4 pb-4">
+                        <p class="text-slate-600 mb-4">With all custom components rebuilt as `.deb` packages, the next step is to assemble them into a final, comprehensive Docker image that represents the complete ev3dev-Trixie operating system.</p>
+                        <ol class="list-decimal list-inside space-y-3 text-slate-700">
+                            <li><strong>Create a Final Dockerfile:</strong> Adapt a Dockerfile from the `ev3dev/docker-library` repository. Set the base to `FROM debian:trixie`.</li>
+                            <li><strong>Install Custom Packages:</strong> Add `COPY` and `RUN dpkg -i` commands to your Dockerfile to install all the custom `.deb` packages you built in the previous step.</li>
+                            <li><strong>Build the Final Image:</strong>
+                                <div class="code-block mt-2">
+                                    <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">docker build -t ev3dev/ev3dev-trixie-ev3-generic .</code></pre>
+                                    <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+                 <!-- Step 4 -->
+                <div class="accordion-item bg-white rounded-lg shadow-md">
+                    <button class="accordion-header w-full text-left p-4 flex justify-between items-center">
+                        <span class="text-xl font-semibold text-slate-800">4. Generate and Test Bootable SD Card</span>
+                        <span class="accordion-icon text-2xl text-teal-500 font-light transform transition-transform">+</span>
+                    </button>
+                    <div class="accordion-content px-4 pb-4">
+                        <p class="text-slate-600 mb-4">The final step is to convert your complete Docker image into a bootable SD card image using `brickstrap`, flash it, and perform rigorous testing on the actual EV3 hardware.</p>
+                        <ol class="list-decimal list-inside space-y-3 text-slate-700">
+                            <li><strong>Generate Image with `brickstrap`:</strong> Use the `brickstrap` tool to convert your final Docker image into a bootable `.img` file.
+                                <div class="code-block mt-2">
+                                    <pre class="bg-slate-800 text-white p-3 rounded-md text-sm overflow-x-auto"><code class="language-bash">brickstrap create-tar ev3dev/ev3dev-trixie-ev3-generic ev3dev-trixie.tar
+brickstrap create-image ev3dev-trixie.tar ev3dev-trixie.img</code></pre>
+                                    <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                                </div>
+                            </li>
+                            <li><strong>Flash the Image:</strong> Use a tool like Balena Etcher or `dd` to write the `ev3dev-trixie.img` file to a microSD card.</li>
+                            <li><strong>Comprehensive Hardware Testing:</strong> Boot the EV3 from the new SD card. Systematically test every feature: motors, all sensor ports, display, buttons, sound, USB, and network connectivity. Document any bugs or regressions for further debugging.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="risks" class="space-y-6 mt-12 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">Challenges & Key Risks</h2>
+             <p class="text-lg text-slate-600">This project, while feasible, carries inherent risks due to the nature of the software involved. Understanding these challenges upfront is crucial for managing expectations and planning for long-term maintenance.</p>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-amber-500">
+                    <h3 class="text-xl font-semibold text-slate-800 mb-2">Instability of a "Testing" Release</h3>
+                    <p class="text-slate-600">Debian Trixie is a moving target. As the "testing" branch, it receives continuous updates, and there is no guarantee of API stability. A system built on Trixie today might break after a routine `apt upgrade` tomorrow. This requires a commitment to ongoing maintenance and debugging until Trixie becomes stable.</p>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-amber-500">
+                    <h3 class="text-xl font-semibold text-slate-800 mb-2">Hardware Driver Compatibility</h3>
+                    <p class="text-slate-600">ev3dev's functionality depends on custom kernel modules and drivers. These must be compatible with Trixie's newer Linux kernel. This may require deep, technical work, including patching driver source code to align with new kernel APIs, which can be the most time-consuming part of the port.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="recommendations" class="space-y-6 mt-12 scroll-mt-20">
+            <h2 class="text-3xl font-bold text-slate-800 border-b-2 border-teal-500 pb-2">Final Recommendations</h2>
+            <p class="text-lg text-slate-600">To maximize the chances of a successful port and create a sustainable system, follow these best practices throughout the development process. A disciplined, systematic approach is key to navigating the complexities of this project.</p>
+            <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 list-inside list-disc text-slate-700">
+                <li>Prioritize and verify the `armel` cross-compilation toolchain at every step.</li>
+                <li>Leverage existing `ev3dev/docker-cross` and `ev3dev/docker-library` Dockerfiles as templates.</li>
+                <li>Prepare for an iterative cycle of building, testing, and debugging, especially for custom packages.</li>
+                <li>Rigorously test all hardware functions on the EV3 brick after creating a bootable image.</li>
+                <li>Proactively map dependencies before compiling and be ready for manual conflict resolution.</li>
+                <li>Engage with the ev3dev and Debian communities for support and troubleshooting.</li>
+                <li>Plan for long-term maintenance, as Trixie will evolve until its official stable release.</li>
+                <li>Document every change, dependency resolution, and patch for future reference.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="bg-slate-800 text-slate-300 mt-16">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-sm">
+            <p>This interactive guide was generated based on the technical report for porting ev3dev to Debian Trixie.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const navLinks = document.querySelectorAll('header nav a');
+            const mobileNav = document.getElementById('mobile-nav');
+            const sections = document.querySelectorAll('main > section');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.getAttribute('id');
+                        navLinks.forEach(link => {
+                            link.classList.toggle('active', link.hash === `#${id}`);
+                        });
+                        if(mobileNav.value !== id) {
+                           mobileNav.value = id;
+                        }
+                    }
+                });
+            }, { rootMargin: "-50% 0px -50% 0px", threshold: 0 });
+
+            sections.forEach(section => {
+                observer.observe(section);
+            });
+            
+            mobileNav.addEventListener('change', (e) => {
+                const sectionId = e.target.value;
+                const section = document.getElementById(sectionId);
+                if(section) {
+                    section.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+
+            const accordionItems = document.querySelectorAll('.accordion-item');
+            accordionItems.forEach(item => {
+                const header = item.querySelector('.accordion-header');
+                const content = item.querySelector('.accordion-content');
+                const icon = item.querySelector('.accordion-icon');
+
+                header.addEventListener('click', () => {
+                    const isExpanded = content.style.maxHeight && content.style.maxHeight !== '0px';
+                    
+                    accordionItems.forEach(otherItem => {
+                        if (otherItem !== item) {
+                            otherItem.querySelector('.accordion-content').style.maxHeight = '0px';
+                            otherItem.querySelector('.accordion-icon').textContent = '+';
+                            otherItem.querySelector('.accordion-icon').classList.remove('rotate-45');
+                        }
+                    });
+
+                    if (isExpanded) {
+                        content.style.maxHeight = '0px';
+                        icon.textContent = '+';
+                        icon.classList.remove('rotate-45');
+                    } else {
+                        content.style.maxHeight = content.scrollHeight + 'px';
+                        icon.textContent = '+';
+                        icon.classList.add('rotate-45');
+                    }
+                });
+            });
+
+            const ctx = document.getElementById('difficultyChart').getContext('2d');
+            const difficultyChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['ev3devKit', 'brickman', 'Kernel Drivers', 'ev3dev-tools', 'Other Libs'],
+                    datasets: [{
+                        label: 'Estimated Porting Difficulty (1-10)',
+                        data: [8, 7, 9, 6, 5],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.6)',
+                            'rgba(14, 165, 233, 0.6)',
+                            'rgba(13, 148, 136, 0.6)',
+                            'rgba(16, 185, 129, 0.6)',
+                            'rgba(245, 158, 11, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(59, 130, 246, 1)',
+                            'rgba(14, 165, 233, 1)',
+                            'rgba(13, 148, 136, 1)',
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(245, 158, 11, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 10,
+                            title: {
+                                display: true,
+                                text: 'Difficulty Score'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y + ' / 10';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+
+        function copyCode(button) {
+            const pre = button.previousElementSibling;
+            const code = pre.querySelector('code').innerText;
+            const textArea = document.createElement('textarea');
+            textArea.value = code;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            }
+            document.body.removeChild(textArea);
+        }
+    </script>
+</body>
+</html>
